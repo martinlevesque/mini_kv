@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"github.com/martinlevesque/mini-kc/kv"
 	"log"
 	"net"
 	"os"
@@ -20,16 +21,22 @@ func main() {
 
 	defer server.Close()
 
-	commands_channel := make(chan KVOperation)
+	kvStore := kv.NewKVStore()
+	commands_channel := make(chan kv.KVOperation)
 
-	go func(kvOperation <-chan KVOperation) {
+	go func(kvOperation <-chan kv.KVOperation) {
 		for {
 			// Wait for a command from the channel
 			currentKvOperation := <-kvOperation
 
 			log.Println("opppp Received command: ", currentKvOperation)
 
-			currentKvOperation.replyCh <- "Hello from the server!"
+			if currentKvOperation.Action == kv.COMMAND_SET_KEY {
+				log.Println("set value")
+				kvStore.Set(currentKvOperation.KeyName, currentKvOperation.Value)
+			}
+
+			currentKvOperation.ReplyCh <- "Hello from the server!"
 		}
 	}(commands_channel)
 
@@ -41,11 +48,11 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn, commands_channel)
+		go handleConnection(conn, kvStore, commands_channel)
 	}
 }
 
-func handleConnection(conn net.Conn, commands_channel chan KVOperation) {
+func handleConnection(conn net.Conn, kvStore *kv.KVStore, commands_channel chan kv.KVOperation) {
 	defer conn.Close()
 
 	log.Printf("Accepted connection from %s", conn.RemoteAddr())
@@ -57,13 +64,13 @@ func handleConnection(conn net.Conn, commands_channel chan KVOperation) {
 		line, err := reader.ReadString('\n')
 
 		if err != nil {
-			log.Fatalf("Failed to read request: %s", err)
+			log.Printf("Failed to read request: %s", err)
 			return
 		}
 
 		log.Printf("Received request: %s", line)
 
-		commandResponse, err := HandleCommand(line)
+		commandResponse, err := kv.HandleCommand(line)
 
 		if err != nil {
 			log.Printf("Failed to handle command: %s", err)
@@ -71,17 +78,29 @@ func handleConnection(conn net.Conn, commands_channel chan KVOperation) {
 		}
 
 		replyCh := make(chan string)
-		commandResponse.replyCh = replyCh
+		commandResponse.ReplyCh = replyCh
 
-		if commandResponse.Action == COMMAND_TERMINATE_CONN {
+		if commandResponse.Action == kv.COMMAND_TERMINATE_CONN {
 			log.Printf("Terminating connection")
 			return
 		}
 
-		commands_channel <- commandResponse
+		if commandResponse.Mutate {
+			commands_channel <- commandResponse
 
-		// Write the response
-		_, err = conn.Write([]byte(<-replyCh + "\n"))
+			// Write the response
+			_, err = conn.Write([]byte(<-replyCh + "\n"))
+		} else {
+			// Write the response
+			// todo handle get
+			keyValue, errGet := kvStore.Get(commandResponse.KeyName)
+
+			if errGet != nil {
+				_, err = conn.Write([]byte("(nil)\n"))
+			} else {
+				_, err = conn.Write([]byte("\"" + keyValue + "\"\n"))
+			}
+		}
 
 		if err != nil {
 			log.Printf("Failed to write response: %s", err)

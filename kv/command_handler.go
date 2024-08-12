@@ -1,7 +1,8 @@
-package main
+package kv
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -13,17 +14,42 @@ type CommandType string
 const (
 	COMMAND_TERMINATE_CONN CommandType = "terminate-conn"
 	COMMAND_RETURN_KEY     CommandType = "return-key"
+	COMMAND_SET_KEY        CommandType = "set-key"
 )
 
 type KVOperation struct {
 	Action  CommandType
 	KeyName string
-	replyCh chan string
+	Value   string
+	ReplyCh chan string
+	Mutate  bool
+}
+
+func (kv *KVOperation) String() string {
+	return fmt.Sprintf("KVOperation{Action: %s, KeyName: %s, Value: %s, Mutate: %t}",
+		kv.Action, kv.KeyName, kv.Value, kv.Mutate)
+}
+
+func (kv KVOperation) Equals(other KVOperation) bool {
+	return kv.Action == other.Action &&
+		kv.KeyName == other.KeyName &&
+		kv.Value == other.Value &&
+		kv.Mutate == other.Mutate
 }
 
 func handleQuit(_arg1 string, _arg2 string) KVOperation {
 	return KVOperation{
 		Action: COMMAND_TERMINATE_CONN,
+		Mutate: false,
+	}
+}
+
+func handleSet(keyName string, value string) KVOperation {
+	return KVOperation{
+		Action:  COMMAND_SET_KEY,
+		KeyName: keyName,
+		Value:   value,
+		Mutate:  true,
 	}
 }
 
@@ -31,6 +57,7 @@ func handleGet(keyName string, _arg2 string) KVOperation {
 	return KVOperation{
 		Action:  COMMAND_RETURN_KEY,
 		KeyName: keyName,
+		Mutate:  false,
 	}
 }
 
@@ -65,6 +92,7 @@ func HandleCommand(rawCommand string) (KVOperation, error) {
 		commands := map[string]func(string, string) KVOperation{
 			"QUIT": handleQuit,
 			"GET":  handleGet,
+			"SET":  handleSet,
 		}
 
 		if commandFunc, found := commands[commandType]; found {

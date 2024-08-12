@@ -1,4 +1,7 @@
 
+test:
+	go test ./...
+
 server:
 	go run .
 
