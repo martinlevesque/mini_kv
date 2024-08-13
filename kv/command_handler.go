@@ -96,7 +96,11 @@ func HandleCommand(rawCommand string) (KVOperation, error) {
 		}
 
 		if commandFunc, found := commands[commandType]; found {
-			return commandFunc(arg1, arg2), nil
+			result := commandFunc(arg1, arg2)
+
+			result.ReplyCh = make(chan string)
+
+			return result, nil
 		} else {
 			log.Printf("Unknown command type: %s", commandType)
 		}

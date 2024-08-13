@@ -22,23 +22,6 @@ func main() {
 	defer server.Close()
 
 	kvStore := kv.NewKVStore()
-	commands_channel := make(chan kv.KVOperation)
-
-	go func(kvOperation <-chan kv.KVOperation) {
-		for {
-			// Wait for a command from the channel
-			currentKvOperation := <-kvOperation
-
-			log.Println("opppp Received command: ", currentKvOperation)
-
-			if currentKvOperation.Action == kv.COMMAND_SET_KEY {
-				log.Println("set value")
-				kvStore.Set(currentKvOperation.KeyName, currentKvOperation.Value)
-			}
-
-			currentKvOperation.ReplyCh <- "Hello from the server!"
-		}
-	}(commands_channel)
 
 	for {
 		conn, err := server.Accept()
@@ -48,7 +31,7 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn, kvStore, commands_channel)
+		go handleConnection(conn, kvStore, kvStore.MutableCommandsChannel)
 	}
 }
 
@@ -77,28 +60,30 @@ func handleConnection(conn net.Conn, kvStore *kv.KVStore, commands_channel chan 
 			continue
 		}
 
-		replyCh := make(chan string)
-		commandResponse.ReplyCh = replyCh
-
 		if commandResponse.Action == kv.COMMAND_TERMINATE_CONN {
 			log.Printf("Terminating connection")
 			return
 		}
 
 		if commandResponse.Mutate {
-			commands_channel <- commandResponse
+			kvStore.MutableCommandsChannel <- commandResponse
 
 			// Write the response
-			_, err = conn.Write([]byte(<-replyCh + "\n"))
+			_, err = conn.Write([]byte(<-commandResponse.ReplyCh + "\n"))
 		} else {
 			// Write the response
-			// todo handle get
-			keyValue, errGet := kvStore.Get(commandResponse.KeyName)
+			log.Printf("immutable op")
+			result, errOp := kvStore.ImmutableOperation(&commandResponse)
 
-			if errGet != nil {
-				_, err = conn.Write([]byte("(nil)\n"))
+			if errOp != nil {
+				log.Printf("Failed to do the immutable op, response: %s", errOp)
 			} else {
-				_, err = conn.Write([]byte("\"" + keyValue + "\"\n"))
+				_, err = conn.Write([]byte(result + "\n"))
+
+				if err != nil {
+					log.Printf("Failed to write response: %s", err)
+					return
+				}
 			}
 		}
 
