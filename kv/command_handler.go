@@ -15,6 +15,7 @@ const (
 	COMMAND_TERMINATE_CONN CommandType = "terminate-conn"
 	COMMAND_RETURN_KEY     CommandType = "return-key"
 	COMMAND_SET_KEY        CommandType = "set-key"
+	COMMAND_DEL_KEY        CommandType = "del-key"
 )
 
 type KVOperation struct {
@@ -53,6 +54,15 @@ func handleSet(keyName string, value string) KVOperation {
 	}
 }
 
+func handleDel(keyName string, value string) KVOperation {
+	return KVOperation{
+		Action:  COMMAND_DEL_KEY,
+		KeyName: keyName,
+		Value:   value,
+		Mutate:  true,
+	}
+}
+
 func handleGet(keyName string, _arg2 string) KVOperation {
 	return KVOperation{
 		Action:  COMMAND_RETURN_KEY,
@@ -63,7 +73,6 @@ func handleGet(keyName string, _arg2 string) KVOperation {
 
 func HandleCommand(rawCommand string) (KVOperation, error) {
 	command := strings.TrimSpace(rawCommand)
-	log.Printf("Received command: %s", command)
 
 	// QUIT
 	// GET <key>
@@ -93,6 +102,7 @@ func HandleCommand(rawCommand string) (KVOperation, error) {
 			"QUIT": handleQuit,
 			"GET":  handleGet,
 			"SET":  handleSet,
+			"DEL":  handleDel,
 		}
 
 		if commandFunc, found := commands[commandType]; found {

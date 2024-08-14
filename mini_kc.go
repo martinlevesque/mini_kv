@@ -31,11 +31,11 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn, kvStore, kvStore.MutableCommandsChannel)
+		go handleConnection(conn, kvStore)
 	}
 }
 
-func handleConnection(conn net.Conn, kvStore *kv.KVStore, commands_channel chan kv.KVOperation) {
+func handleConnection(conn net.Conn, kvStore *kv.KVStore) {
 	defer conn.Close()
 
 	log.Printf("Accepted connection from %s", conn.RemoteAddr())
@@ -72,7 +72,6 @@ func handleConnection(conn net.Conn, kvStore *kv.KVStore, commands_channel chan 
 			_, err = conn.Write([]byte(<-commandResponse.ReplyCh + "\n"))
 		} else {
 			// Write the response
-			log.Printf("immutable op")
 			result, errOp := kvStore.ImmutableOperation(&commandResponse)
 
 			if errOp != nil {

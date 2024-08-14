@@ -30,6 +30,8 @@ func NewKVStore() *KVStore {
 
 			if currentKvOperation.Action == COMMAND_SET_KEY {
 				kvStore.Set(currentKvOperation.KeyName, currentKvOperation.Value)
+			} else if currentKvOperation.Action == COMMAND_DEL_KEY {
+				kvStore.Del(currentKvOperation.KeyName)
 			}
 
 			currentKvOperation.ReplyCh <- "(nil)"
@@ -53,9 +55,12 @@ func (kvStore *KVStore) ImmutableOperation(op *KVOperation) (string, error) {
 	return "", errors.New("Invalid operation")
 }
 
-// Set sets a key in the store
 func (kvStore *KVStore) Set(key string, value string) {
 	kvStore.store[key] = value
+}
+
+func (kvStore *KVStore) Del(key string) {
+	delete(kvStore.store, key)
 }
 
 // Get gets a key from the store
