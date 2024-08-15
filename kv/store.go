@@ -3,6 +3,8 @@ package kv
 import (
 	"errors"
 	"log"
+	"strconv"
+	"time"
 )
 
 // KVStore is a simple key-value store in memory
@@ -28,6 +30,8 @@ func NewKVStore() *KVStore {
 			// Wait for a command from the channel
 			currentKvOperation := <-kvOperation
 
+			log.Printf("Mutating loop - %s", currentKvOperation.Action)
+
 			if currentKvOperation.Action == COMMAND_SET_KEY {
 				kvStore.Set(currentKvOperation.KeyName, currentKvOperation.Value)
 			} else if currentKvOperation.Action == COMMAND_DEL_KEY {
@@ -42,6 +46,7 @@ func NewKVStore() *KVStore {
 }
 
 func (kvStore *KVStore) ImmutableOperation(op *KVOperation) (string, error) {
+	log.Printf("Immutable operation: %s", op.Action)
 	if op.Action == COMMAND_RETURN_KEY {
 		value, err := kvStore.Get(op.KeyName)
 
@@ -50,9 +55,40 @@ func (kvStore *KVStore) ImmutableOperation(op *KVOperation) (string, error) {
 		}
 
 		return value, nil
+	} else if op.Action == COMMAND_EXPIRE {
+		go kvStore.Expire(op)
+		log.Printf("after expire: %s", op.KeyName)
+		return "", nil
 	}
 
 	return "", errors.New("Invalid operation")
+}
+
+func (kvStore *KVStore) Expire(op *KVOperation) {
+	log.Println("IN Expire not implemented yet")
+
+	// Value to int
+	expire_in, err := strconv.Atoi(op.Value)
+
+	if err != nil {
+		log.Printf("Failed to convert expire value to int: %s", err)
+		return
+	}
+
+	time.Sleep(time.Duration(expire_in) * time.Second)
+	log.Printf("Expired key: %s", op.KeyName)
+
+	opDelete := KVOperation{
+		Action:  COMMAND_DEL_KEY,
+		KeyName: op.KeyName,
+		Value:   "",
+		Mutate:  true,
+		ReplyCh: make(chan string, 1),
+	}
+	kvStore.MutableCommandsChannel <- opDelete
+
+	// ignore the ReplyCh
+	<-opDelete.ReplyCh
 }
 
 func (kvStore *KVStore) Set(key string, value string) {

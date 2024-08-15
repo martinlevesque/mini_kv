@@ -16,6 +16,7 @@ const (
 	COMMAND_RETURN_KEY     CommandType = "return-key"
 	COMMAND_SET_KEY        CommandType = "set-key"
 	COMMAND_DEL_KEY        CommandType = "del-key"
+	COMMAND_EXPIRE         CommandType = "expire-key"
 )
 
 type KVOperation struct {
@@ -63,6 +64,15 @@ func handleDel(keyName string, value string) KVOperation {
 	}
 }
 
+func handleExpire(keyName string, value string) KVOperation {
+	return KVOperation{
+		Action:  COMMAND_EXPIRE,
+		KeyName: keyName,
+		Value:   value,
+		Mutate:  false,
+	}
+}
+
 func handleGet(keyName string, _arg2 string) KVOperation {
 	return KVOperation{
 		Action:  COMMAND_RETURN_KEY,
@@ -78,8 +88,8 @@ func HandleCommand(rawCommand string) (KVOperation, error) {
 	// GET <key>
 	// SET <key> <value>
 	// DEL <key>
-	// KEYS
 	// EXPIRE <key> <seconds>
+	// KEYS
 
 	re := regexp.MustCompile(`^(QUIT|GET|SET|DEL|KEYS|EXPIRE)(\s+([^\s]+))?(\s+([^\s]+))?$`)
 	matches := re.FindStringSubmatch(command)
@@ -99,10 +109,11 @@ func HandleCommand(rawCommand string) (KVOperation, error) {
 		}
 
 		commands := map[string]func(string, string) KVOperation{
-			"QUIT": handleQuit,
-			"GET":  handleGet,
-			"SET":  handleSet,
-			"DEL":  handleDel,
+			"QUIT":   handleQuit,
+			"GET":    handleGet,
+			"SET":    handleSet,
+			"DEL":    handleDel,
+			"EXPIRE": handleExpire,
 		}
 
 		if commandFunc, found := commands[commandType]; found {

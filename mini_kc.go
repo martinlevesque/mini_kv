@@ -73,6 +73,7 @@ func handleConnection(conn net.Conn, kvStore *kv.KVStore) {
 		} else {
 			// Write the response
 			result, errOp := kvStore.ImmutableOperation(&commandResponse)
+			log.Printf("Immutable op done: %s", result)
 
 			if errOp != nil {
 				log.Printf("Failed to do the immutable op, response: %s", errOp)
