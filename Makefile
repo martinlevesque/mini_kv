@@ -1,6 +1,6 @@
 
 test:
-	go test ./...
+	find . -name '*.go' | entr -r go test ./...
 
 server:
 	go run .
