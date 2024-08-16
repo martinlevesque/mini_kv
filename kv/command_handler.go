@@ -17,6 +17,7 @@ const (
 	COMMAND_SET_KEY        CommandType = "set-key"
 	COMMAND_DEL_KEY        CommandType = "del-key"
 	COMMAND_EXPIRE         CommandType = "expire-key"
+	COMMAND_KEYS           CommandType = "keys"
 )
 
 type KVOperation struct {
@@ -73,6 +74,14 @@ func handleExpire(keyName string, value string) KVOperation {
 	}
 }
 
+func handleKeys(keyName string, _value string) KVOperation {
+	return KVOperation{
+		Action:  COMMAND_KEYS,
+		KeyName: keyName,
+		Mutate:  false,
+	}
+}
+
 func handleGet(keyName string, _arg2 string) KVOperation {
 	return KVOperation{
 		Action:  COMMAND_RETURN_KEY,
@@ -114,6 +123,7 @@ func HandleCommand(rawCommand string) (KVOperation, error) {
 			"SET":    handleSet,
 			"DEL":    handleDel,
 			"EXPIRE": handleExpire,
+			"KEYS":   handleKeys,
 		}
 
 		if commandFunc, found := commands[commandType]; found {

@@ -2,7 +2,9 @@ package kv
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -59,9 +61,32 @@ func (kvStore *KVStore) ImmutableOperation(op *KVOperation) (string, error) {
 		go kvStore.Expire(op)
 		log.Printf("after expire: %s", op.KeyName)
 		return "", nil
+	} else if op.Action == COMMAND_KEYS {
+		return kvStore.Keys(op.KeyName)
 	}
 
 	return "", errors.New("Invalid operation")
+}
+
+func (kvStore *KVStore) Keys(regexPattern string) (string, error) {
+	pattern, err := regexp.Compile(regexPattern)
+
+	if err != nil {
+		return "", err // Return the error if the pattern is invalid
+	}
+
+	keys := ""
+	i := 0
+
+	for key := range kvStore.store {
+		i++
+
+		if pattern.MatchString(key) {
+			keys += fmt.Sprintf("%d) %s\n", i, key)
+		}
+	}
+
+	return keys, nil
 }
 
 func (kvStore *KVStore) Expire(op *KVOperation) {
