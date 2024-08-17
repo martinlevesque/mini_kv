@@ -6,6 +6,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,7 @@ import (
 
 type KVStore struct {
 	store                  map[string]string
+	Mutex                  sync.RWMutex
 	MutableCommandsChannel chan KVOperation
 }
 
@@ -25,14 +27,13 @@ func NewKVStore() *KVStore {
 	kvStore := KVStore{
 		store:                  make(map[string]string),
 		MutableCommandsChannel: mutableCommandsChannel,
+		Mutex:                  sync.RWMutex{},
 	}
 
 	go func(kvOperation <-chan KVOperation) {
 		for {
 			// Wait for a command from the channel
 			currentKvOperation := <-kvOperation
-
-			log.Printf("Mutating loop - %s", currentKvOperation.Action)
 
 			if currentKvOperation.Action == COMMAND_SET_KEY {
 				kvStore.Set(currentKvOperation.KeyName, currentKvOperation.Value)
@@ -48,7 +49,6 @@ func NewKVStore() *KVStore {
 }
 
 func (kvStore *KVStore) ImmutableOperation(op *KVOperation) (string, error) {
-	log.Printf("Immutable operation: %s", op.Action)
 	if op.Action == COMMAND_RETURN_KEY {
 		value, err := kvStore.Get(op.KeyName)
 
@@ -59,7 +59,6 @@ func (kvStore *KVStore) ImmutableOperation(op *KVOperation) (string, error) {
 		return value, nil
 	} else if op.Action == COMMAND_EXPIRE {
 		go kvStore.Expire(op)
-		log.Printf("after expire: %s", op.KeyName)
 		return "", nil
 	} else if op.Action == COMMAND_KEYS {
 		return kvStore.Keys(op.KeyName)
@@ -78,6 +77,7 @@ func (kvStore *KVStore) Keys(regexPattern string) (string, error) {
 	keys := ""
 	i := 0
 
+	kvStore.Mutex.RLock()
 	for key := range kvStore.store {
 		i++
 
@@ -85,6 +85,9 @@ func (kvStore *KVStore) Keys(regexPattern string) (string, error) {
 			keys += fmt.Sprintf("%d) %s\n", i, key)
 		}
 	}
+	kvStore.Mutex.RUnlock()
+
+	keys += fmt.Sprintf("Total keys: %d\n", i)
 
 	return keys, nil
 }
@@ -117,16 +120,21 @@ func (kvStore *KVStore) Expire(op *KVOperation) {
 }
 
 func (kvStore *KVStore) Set(key string, value string) {
+	kvStore.Mutex.Lock()
 	kvStore.store[key] = value
+	kvStore.Mutex.Unlock()
 }
 
 func (kvStore *KVStore) Del(key string) {
+	kvStore.Mutex.Lock()
 	delete(kvStore.store, key)
+	kvStore.Mutex.Unlock()
 }
 
-// Get gets a key from the store
 func (kvStore *KVStore) Get(key string) (string, error) {
+	kvStore.Mutex.RLock()
 	value, ok := kvStore.store[key]
+	kvStore.Mutex.RUnlock()
 
 	if !ok {
 		return "(nil)", nil

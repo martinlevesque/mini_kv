@@ -38,8 +38,6 @@ func main() {
 func handleConnection(conn net.Conn, kvStore *kv.KVStore) {
 	defer conn.Close()
 
-	log.Printf("Accepted connection from %s", conn.RemoteAddr())
-
 	// Read the request
 	reader := bufio.NewReader(conn)
 
@@ -50,8 +48,6 @@ func handleConnection(conn net.Conn, kvStore *kv.KVStore) {
 			log.Printf("Failed to read request: %s", err)
 			return
 		}
-
-		log.Printf("Received request: %s", line)
 
 		commandResponse, err := kv.HandleCommand(line)
 
@@ -73,7 +69,6 @@ func handleConnection(conn net.Conn, kvStore *kv.KVStore) {
 		} else {
 			// Write the response
 			result, errOp := kvStore.ImmutableOperation(&commandResponse)
-			log.Printf("Immutable op done: %s", result)
 
 			if errOp != nil {
 				log.Printf("Failed to do the immutable op, response: %s", errOp)
