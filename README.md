@@ -40,3 +40,17 @@ Fixed number of connections set to 10 with variable number of requests per secon
 | 300              | 2454.51                                   | 0.000810 sec.     |
 | 3000             | 21782.36                                  | 0.000249 sec.     |
 | 30000            | 58929.76                                  | 0.000169 sec.     |
+|---------------------|-----------------------------------------------|---------------|
+
+Next we vary the number of connections with fixed number of requests per second per connection (10).
+
+
+----------------------------------------------
+| Num of Connections | Throughput (requests per second sent-received) | Average delay |
+|---------------------|-----------------------------------------------|---------------|
+| 3                | 29.90                                     | 0.001093 sec.     |
+| 30               | 299.00                                    | 0.001302 sec.     |
+| 300              | 2982.53                                   | 0.001865 sec.     |
+| 3000             | 28074.55                                  | 0.002216 sec.     |
+| 10000            | 71731.83                                  | 0.057918 sec.     |
+|---------------------|-----------------------------------------------|---------------|
