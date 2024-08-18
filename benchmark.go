@@ -15,6 +15,14 @@ import (
 	"time"
 )
 
+type ConnectionResult struct {
+	Concurrency       int
+	RequestsPerSecond int
+	Throughput        float64
+	TotalRequests     int
+	AvgLatency        float64
+}
+
 var wg sync.WaitGroup
 
 func safeAtoi(s string) int {
@@ -37,19 +45,47 @@ func main() {
 	requestsPerSecond := safeAtoi(os.Args[3])
 	duration := safeAtoi(os.Args[4])
 
+	results := make(chan ConnectionResult, concurrency)
+
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done() // Signal completion of the goroutine
-			benchmarkConnection(addr, concurrency, requestsPerSecond, duration)
+			result := benchmarkConnection(addr, concurrency, requestsPerSecond, duration)
+
+			results <- result
 		}()
 	}
 
 	wg.Wait()
+	close(results)
+
+	// Calculate the average throughput and latency
+	totalRequests := 0
+	totalThroughput := 0.0
+	totalLatency := 0.0
+
+	for result := range results {
+		totalRequests += result.TotalRequests
+		totalThroughput += result.Throughput
+		totalLatency += result.AvgLatency
+	}
+
+	avgThroughput := totalThroughput / float64(duration)
+	avgLatency := totalLatency / float64(concurrency)
+
+	fmt.Printf("%d %d %d %f %f\n", concurrency, requestsPerSecond, totalRequests, avgThroughput, avgLatency)
 }
 
-func benchmarkConnection(addr string, concurrency int, requestsPerSecond int, durationSeconds int) {
+func benchmarkConnection(addr string, concurrency int, requestsPerSecond int, durationSeconds int) ConnectionResult {
+	result := ConnectionResult{
+		Concurrency:       concurrency,
+		RequestsPerSecond: requestsPerSecond,
+		Throughput:        0.0,
+		TotalRequests:     0,
+		AvgLatency:        0.0,
+	}
 	start := time.Now()
 
 	// Create a connection to the server
@@ -63,7 +99,7 @@ func benchmarkConnection(addr string, concurrency int, requestsPerSecond int, du
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	cntSent := 0
-	sumLatencyMs := 0
+	sumLatencyMicrosecs := 0
 
 	genCommands := map[int]func() string{
 		0: genGet,
@@ -94,26 +130,27 @@ func benchmarkConnection(addr string, concurrency int, requestsPerSecond int, du
 
 		endTimeTransmission := time.Now()
 		cntSent++
-		currentDelay := int(endTimeTransmission.Sub(currentTime).Milliseconds())
-		sumLatencyMs += currentDelay
+		currentDelay := int(endTimeTransmission.Sub(currentTime).Microseconds())
+		sumLatencyMicrosecs += currentDelay
 
-		nbMicroSecondsInSecond := 1000000
-		randomInterval := rand.Intn(nbMicroSecondsInSecond)
-		multiplier := nbMicroSecondsInSecond/2 + randomInterval
-
-		waitMicroseconds := int((1.0 / float64(requestsPerSecond)) * float64(multiplier))
-		waitMicrosecondsWithoutDelay := waitMicroseconds - (currentDelay * 1000)
+		waitMicroseconds := int(float64((1.0 / float64(requestsPerSecond))) * 1000000)
+		waitMicrosecondsWithoutDelay := waitMicroseconds - (currentDelay)
 
 		if waitMicrosecondsWithoutDelay > 0 {
 			time.Sleep(time.Duration(waitMicrosecondsWithoutDelay) * time.Microsecond)
 		}
 
 		if elapsed.Seconds() > float64(durationSeconds) {
-			avgDelay := (float64(sumLatencyMs) / float64(cntSent)) / 1000
-			fmt.Printf("%d %d %d %f\n", concurrency, requestsPerSecond, cntSent, avgDelay)
 			break
 		}
 	}
+
+	avgDelay := (float64(sumLatencyMicrosecs) / float64(cntSent)) / 1000000
+	result.Throughput = float64(cntSent)
+	result.TotalRequests = cntSent
+	result.AvgLatency = avgDelay
+
+	return result
 }
 
 func genGet() string {
