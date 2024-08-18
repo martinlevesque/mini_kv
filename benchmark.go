@@ -29,7 +29,7 @@ func safeAtoi(s string) int {
 }
 
 func main() {
-	// CLI command arguments: go run benchmark.go <addr> <concurrency> <requests-per-second>
+	// CLI command arguments: go run benchmark.go <addr> <concurrency> <requests-per-second> <duration>
 
 	// Get the address from the command line arguments
 	addr := os.Args[1]
@@ -37,24 +37,19 @@ func main() {
 	requestsPerSecond := safeAtoi(os.Args[3])
 	duration := safeAtoi(os.Args[4])
 
-	log.Println("Starting benchmark to", addr)
-	log.Println("Concurrency:", concurrency)
-	log.Println("Requests per second:", requestsPerSecond)
-
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done() // Signal completion of the goroutine
-			benchmarkConnection(addr, requestsPerSecond, duration)
+			benchmarkConnection(addr, concurrency, requestsPerSecond, duration)
 		}()
 	}
 
 	wg.Wait()
 }
 
-func benchmarkConnection(addr string, requestsPerSecond int, durationSeconds int) {
-	log.Println("Benchmarking connection to", addr)
+func benchmarkConnection(addr string, concurrency int, requestsPerSecond int, durationSeconds int) {
 	start := time.Now()
 
 	// Create a connection to the server
@@ -99,12 +94,23 @@ func benchmarkConnection(addr string, requestsPerSecond int, durationSeconds int
 
 		endTimeTransmission := time.Now()
 		cntSent++
-		sumLatencyMs += int(endTimeTransmission.Sub(currentTime).Milliseconds())
+		currentDelay := int(endTimeTransmission.Sub(currentTime).Milliseconds())
+		sumLatencyMs += currentDelay
 
-		time.Sleep(5000 * time.Microsecond)
+		nbMicroSecondsInSecond := 1000000
+		randomInterval := rand.Intn(nbMicroSecondsInSecond)
+		multiplier := nbMicroSecondsInSecond/2 + randomInterval
+
+		waitMicroseconds := int((1.0 / float64(requestsPerSecond)) * float64(multiplier))
+		waitMicrosecondsWithoutDelay := waitMicroseconds - (currentDelay * 1000)
+
+		if waitMicrosecondsWithoutDelay > 0 {
+			time.Sleep(time.Duration(waitMicrosecondsWithoutDelay) * time.Microsecond)
+		}
 
 		if elapsed.Seconds() > float64(durationSeconds) {
-			log.Printf("Sent %d requests in %f sum latency seconds \n", cntSent, (float64(sumLatencyMs)/float64(cntSent))/1000)
+			avgDelay := (float64(sumLatencyMs) / float64(cntSent)) / 1000
+			fmt.Printf("%d %d %d %f\n", concurrency, requestsPerSecond, cntSent, avgDelay)
 			break
 		}
 	}
