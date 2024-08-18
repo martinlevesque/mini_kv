@@ -93,8 +93,6 @@ func (kvStore *KVStore) Keys(regexPattern string) (string, error) {
 }
 
 func (kvStore *KVStore) Expire(op *KVOperation) {
-	log.Println("IN Expire not implemented yet")
-
 	// Value to int
 	expire_in, err := strconv.Atoi(op.Value)
 
@@ -104,7 +102,6 @@ func (kvStore *KVStore) Expire(op *KVOperation) {
 	}
 
 	time.Sleep(time.Duration(expire_in) * time.Second)
-	log.Printf("Expired key: %s", op.KeyName)
 
 	opDelete := KVOperation{
 		Action:  COMMAND_DEL_KEY,
