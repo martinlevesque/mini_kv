@@ -1,6 +1,6 @@
 # mini_kv
 
-Minimalistic (~ 400 lines) key-value store written in golang for the sake of learning go. 
+Minimalist (~ 400 lines) key-value store written in golang for the sake of learning go. 
 The KV store is a TCP-based in-memory only and supports a small number of operations, namely GET, SET, DEL, KEYS, and EXPIRE.
 
 ## Usage
